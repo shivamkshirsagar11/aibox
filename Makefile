@@ -24,17 +24,20 @@ help:
 	@echo "  $(BOLD)$(CYAN)vm-ai-setup$(RESET)  —  Run AI on your Oracle VM, use it from local machine"
 	@echo ""
 	@echo "  $(BOLD)SETUP (run these on your VM via SSH)$(RESET)"
-	@echo "    make install      Install Ollama + pull model + setup WebUI"
-	@echo "    make pull         Pull / update the model in config.env"
-	@echo "    make status       Show what's running on the VM"
-	@echo "    make webui        (Re)start the Open WebUI chat interface"
-	@echo ""
-	@echo "  $(BOLD)LOCAL MACHINE$(RESET)"
-	@echo "    make tunnel       SSH tunnel — use Ollama at localhost:$(OLLAMA_PORT)"
+	@echo "    make install        Install Ollama + pull model + setup WebUI"
+	@echo "    make start          Start Ollama + WebUI"
+	@echo "    make stop           Stop Ollama + WebUI"
+	@echo "    make status         Show what's running on the VM"
+	@echo "    make webui          (Re)start the Open WebUI chat interface"
 	@echo ""
 	@echo "  $(BOLD)MODEL$(RESET)"
-	@echo "    make models       List all downloaded models"
-	@echo "    make chat         Quick terminal chat with your model"
+	@echo "    make models         List all downloaded models"
+	@echo "    make chat           Quick terminal chat with your model"
+	@echo "    make update-model   Pull latest version of current model"
+	@echo "    make switch-model   Change MODEL in config.env, then run this"
+	@echo ""
+	@echo "  $(BOLD)LOCAL MACHINE$(RESET)"
+	@echo "    make tunnel         SSH tunnel — use Ollama at localhost:$(OLLAMA_PORT)"
 	@echo ""
 	@echo "  Edit $(BOLD)config.env$(RESET) to change model, VM IP, or options."
 	@echo ""
@@ -46,11 +49,22 @@ install: _check_config
 	@chmod +x $(SCRIPTS)/install.sh
 	@bash $(SCRIPTS)/install.sh
 
-# ── Pull / update model ──────────────────────────────────────────────────────
-.PHONY: pull
-pull: _check_config
-	@echo "$(CYAN)Pulling model: $(MODEL)$(RESET)"
-	@ollama pull $(MODEL)
+# ── Start everything ─────────────────────────────────────────────────────────
+.PHONY: start
+start: _check_config
+	@echo "$(CYAN)Starting Ollama...$(RESET)"
+	@sudo systemctl start ollama && echo "  Ollama started."
+	@if docker ps -a --filter "name=open-webui" | grep -q open-webui; then \
+		docker start open-webui && echo "  Open WebUI started."; \
+	fi
+
+# ── Stop everything ──────────────────────────────────────────────────────────
+.PHONY: stop
+stop:
+	@echo "$(CYAN)Stopping Ollama...$(RESET)"
+	@sudo systemctl stop ollama && echo "  Ollama stopped." || echo "  Ollama was not running."
+	@echo "$(CYAN)Stopping Open WebUI...$(RESET)"
+	@docker stop open-webui 2>/dev/null && echo "  Open WebUI stopped." || echo "  Open WebUI was not running."
 
 # ── Status ───────────────────────────────────────────────────────────────────
 .PHONY: status
@@ -88,6 +102,20 @@ models:
 .PHONY: chat
 chat: _check_config
 	@ollama run $(MODEL)
+
+# ── Update current model to latest version ───────────────────────────────────
+.PHONY: update-model
+update-model: _check_config
+	@echo "$(CYAN)Pulling latest version of $(MODEL)...$(RESET)"
+	@ollama pull $(MODEL)
+	@echo "$(GREEN)Done! $(MODEL) is up to date.$(RESET)"
+
+# ── Switch to a different model (change MODEL in config.env first) ────────────
+.PHONY: switch-model
+switch-model: _check_config
+	@echo "$(CYAN)Pulling new model: $(MODEL)$(RESET)"
+	@ollama pull $(MODEL)
+	@echo "$(GREEN)Switched to $(MODEL). Run 'make chat' to try it.$(RESET)"
 
 # ── Internal: config check ───────────────────────────────────────────────────
 .PHONY: _check_config
