@@ -1,0 +1,6 @@
+# Don't commit personal config
+config.env
+
+# OS
+.DS_Store
+Thumbs.db
