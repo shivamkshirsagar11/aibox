@@ -1,4 +1,4 @@
-# vm-ai-setup
+# aibox
 
 Run a state-of-the-art AI model on your Oracle Cloud VM and use it from your local machine — with zero brain usage.
 
@@ -8,9 +8,10 @@ One config file. A few `make` commands. Done.
 
 ## What you get
 
-- **Ollama** running on your VM with a best-in-class model (default: `qwen2.5-coder:7b`)
+- **Ollama** running on your VM with a best-in-class coding + chat model
 - **Open WebUI** — a ChatGPT-like browser interface at `http://your-vm-ip:3000`
-- **SSH tunnel** to use Ollama locally at `http://localhost:11434` — works with VS Code, Python, any OpenAI-compatible tool
+- **SSH tunnel** — use Ollama from your local machine at `http://localhost:11434`
+- Works with **VS Code**, **Python**, **Node.js**, anything OpenAI-compatible
 
 ---
 
@@ -18,31 +19,33 @@ One config file. A few `make` commands. Done.
 
 | Where | What |
 |-------|------|
-| Oracle VM | Ubuntu 22.04+, 2+ OCPUs, 12GB+ RAM |
+| Oracle VM | Ubuntu 22.04+ or Amazon Linux, 2+ OCPUs, 12GB+ RAM |
 | Local machine | `make`, `ssh`, `git` |
 
 ---
 
 ## Setup (5 minutes)
 
-### Step 1 — Clone the repo (on your VM)
+### Step 1 — Clone the repo on your VM
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/vm-ai-setup.git
-cd vm-ai-setup
+git clone https://github.com/YOUR_USERNAME/aibox.git
+cd aibox
 ```
 
 ### Step 2 — Edit config
 
 ```bash
+cp config.env.example config.env
 nano config.env
 ```
 
-Only two things you need to change:
+The only things you need to set:
 
 ```env
-MODEL=qwen2.5-coder:7b   # or llama3.1:8b, mistral:7b, deepseek-r1:7b
-VM_IP=YOUR_VM_IP_HERE    # your Oracle VM's public IP
+MODEL=qwen2.5-coder:7b    # see model recommendations below
+VM_IP=YOUR_VM_IP_HERE     # your Oracle VM's public IP
+SSH_KEY=~/.ssh/id_rsa     # path to your SSH private key
 ```
 
 ### Step 3 — Install
@@ -51,69 +54,79 @@ VM_IP=YOUR_VM_IP_HERE    # your Oracle VM's public IP
 make install
 ```
 
-That's it. Ollama is installed, the model is downloaded, and Open WebUI is running.
+That's it. Ollama is installed, model is downloaded, WebUI is running.
 
 ---
 
 ## Open Oracle Cloud firewall ports ⚠️
 
-This is the one manual step — Oracle has its own firewall separate from the OS.
+Oracle has its own firewall on top of the OS — you must open ports in both.
 
 1. Go to **Oracle Cloud Console → Networking → Virtual Cloud Networks**
 2. Click your VCN → **Security Lists** → **Default Security List**
 3. Click **Add Ingress Rules** and add:
 
-| Stateless | Source CIDR | Protocol | Port |
-|-----------|-------------|----------|------|
-| No | 0.0.0.0/0 | TCP | 11434 |
-| No | 0.0.0.0/0 | TCP | 3000 |
+| Source CIDR | Protocol | Destination Port |
+|-------------|----------|-----------------|
+| 0.0.0.0/0 | TCP | 11434 |
+| 0.0.0.0/0 | TCP | 3000 |
 
-> If you skip this step, nothing will be reachable from outside.
+> This is the #1 reason things don't work. Don't skip it.
+
+---
+
+## All commands
+
+### On your VM
+
+```bash
+make install        # Install everything (Ollama + model + WebUI)
+make start          # Start Ollama + WebUI
+make stop           # Stop everything
+make status         # See what's running
+make webui          # (Re)start Open WebUI only
+make chat           # Quick terminal chat with your model
+make models         # List all downloaded models
+make update-model   # Pull latest version of your current model
+make switch-model   # After changing MODEL in config.env, pull the new one
+```
+
+### On your local machine
+
+```bash
+make tunnel         # SSH tunnel → Ollama available at localhost:11434
+```
 
 ---
 
 ## Use from your local machine
 
-### Option A — SSH Tunnel (recommended, most secure)
+### Option A — SSH Tunnel (recommended)
 
-Clone the repo on your local machine too, set `VM_IP` in `config.env`, then:
+Clone this repo on your local machine too, fill in `config.env`, then:
 
 ```bash
 make tunnel
 ```
 
-Ollama is now at `http://localhost:11434` on your local machine. Keep this terminal open.
+Ollama is now at `http://localhost:11434`. Keep this terminal open while you work.
 
 ### Option B — Direct access via public IP
 
-Hit `http://your-vm-ip:11434` directly (after opening Oracle firewall ports above).
+Hit `http://your-vm-ip:11434` directly. Make sure Oracle firewall ports are open (see above).
 
 ---
 
-## Commands
+## Use in VS Code (free GitHub Copilot alternative)
 
-```bash
-make install    # Install everything on the VM
-make status     # Check what's running
-make pull       # Re-pull or update your model
-make chat       # Quick terminal chat session
-make models     # List downloaded models
-make webui      # (Re)start Open WebUI
-make tunnel     # SSH tunnel (run on local machine)
-```
-
----
-
-## Use in VS Code (free Copilot alternative)
-
-1. Install the [Continue](https://marketplace.visualstudio.com/items?itemName=Continue.continue) extension
+1. Install the [Continue](https://marketplace.visualstudio.com/items?itemName=Continue.continue) extension in VS Code
 2. Open `~/.continue/config.json` and add:
 
 ```json
 {
   "models": [
     {
-      "title": "My VM",
+      "title": "aibox",
       "provider": "ollama",
       "model": "qwen2.5-coder:7b",
       "apiBase": "http://localhost:11434"
@@ -122,14 +135,12 @@ make tunnel     # SSH tunnel (run on local machine)
 }
 ```
 
-3. Run `make tunnel` to keep the connection open
-4. Use `Ctrl+I` in VS Code for inline AI assistance
+3. Run `make tunnel` on your local machine to keep the connection open
+4. Use `Ctrl+I` for inline edits, `Ctrl+L` to open the chat sidebar
 
 ---
 
-## Use in Python / Node.js
-
-Ollama is OpenAI-API compatible — just swap the base URL:
+## Use in Python
 
 ```python
 from openai import OpenAI
@@ -143,6 +154,8 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
+## Use in Node.js
+
 ```javascript
 import OpenAI from "openai";
 
@@ -155,31 +168,61 @@ const res = await client.chat.completions.create({
 console.log(res.choices[0].message.content);
 ```
 
+## Use via curl (quick test)
+
+```bash
+curl http://localhost:11434/api/generate -d '{
+  "model": "qwen2.5-coder:7b",
+  "prompt": "Write a Python hello world",
+  "stream": false
+}'
+```
+
 ---
 
 ## Model recommendations
 
 | Model | Best for | RAM needed |
 |-------|----------|------------|
-| `qwen2.5-coder:7b` | Coding (default) | ~5 GB |
-| `llama3.1:8b` | Chat + reasoning | ~6 GB |
-| `mistral:7b` | Fast, general use | ~4 GB |
-| `deepseek-r1:7b` | Step-by-step reasoning | ~5 GB |
+| `qwen2.5-coder:7b` | Coding — default, highly recommended | ~5 GB |
+| `llama3.1:8b` | Chat + general reasoning | ~6 GB |
+| `mistral:7b` | Fast, lightweight, great all-rounder | ~4 GB |
+| `deepseek-r1:7b` | Step-by-step problem solving | ~5 GB |
+| `nomic-embed-text` | Embeddings for RAG / semantic search | ~1 GB |
 
-Change model anytime in `config.env` → run `make pull` → done.
+> Stick to 7B or smaller models on a 12GB RAM VM. Don't run two models at once.
+
+### Switching models
+
+```bash
+# 1. Edit config.env
+nano config.env   # change MODEL=llama3.1:8b
+
+# 2. Pull it
+make switch-model
+
+# 3. Try it
+make chat
+```
 
 ---
 
 ## Troubleshooting
 
-**Ollama port not reachable from outside?**
-→ Did you add the Ingress Rule in Oracle Cloud Console? That's the most common issue.
+**Nothing reachable from outside the VM?**
+→ Open ports in Oracle Cloud Console (see above). This is the most common issue — Oracle has two separate firewalls.
 
-**`make tunnel` hangs?**
-→ Make sure your SSH key is set up: `ssh ubuntu@your-vm-ip` should work without a password.
+**`sudo: apt-get: command not found`**
+→ You're on Amazon Linux / RHEL. The install script handles this automatically — make sure you're on the latest version of this repo.
+
+**`make tunnel` hangs or refuses connection?**
+→ Check that `SSH_KEY` in `config.env` points to the right key file. Test manually: `ssh -i ~/.ssh/your-key.pem ubuntu@your-vm-ip`
 
 **Model download is slow?**
 → Normal — 7B models are 4–5 GB. It only downloads once.
 
-**Out of memory?**
-→ Stick to 7B or smaller models. Don't run multiple models at once.
+**Out of memory / model crashes?**
+→ Run `make stop`, then `make start` to free up RAM. Switch to a smaller model like `mistral:7b`.
+
+**WebUI won't start?**
+→ Run `make webui` to restart it. If Docker isn't installed, run `make install` again.
