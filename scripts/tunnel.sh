@@ -32,4 +32,4 @@ echo ""
 echo -e "  Press ${BOLD}Ctrl+C${RESET} to stop the tunnel."
 echo ""
 
-ssh -N -L "${OLLAMA_PORT}:localhost:${OLLAMA_PORT}" "${SSH_USER}@${VM_IP}"
+ssh -N -i "${SSH_KEY}" -L "${OLLAMA_PORT}:localhost:${OLLAMA_PORT}" "${SSH_USER}@${VM_IP}"
