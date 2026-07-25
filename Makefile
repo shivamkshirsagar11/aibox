@@ -92,6 +92,7 @@ webui: _check_config
 		-p 3000:8080 \
 		--add-host=host.docker.internal:host-gateway \
 		-e OLLAMA_BASE_URL="http://host.docker.internal:$(OLLAMA_PORT)" \
+		-e ENABLE_SIGNUP=true \
 		$(if $(NVIDIA_API_KEY),-e OPENAI_API_BASE_URL="$(NVIDIA_BASE_URL)" -e OPENAI_API_KEY="$(NVIDIA_API_KEY)" -e NVIDIA_API_KEY="$(NVIDIA_API_KEY)",) \
 		-v open-webui:/app/backend/data \
 		ghcr.io/open-webui/open-webui:main
@@ -99,6 +100,7 @@ webui: _check_config
 	@if [ -n "$(NVIDIA_API_KEY)" ]; then \
 		echo "$(GREEN)  NVIDIA hosted Nemotron models are now in the model picker.$(RESET)"; \
 	fi
+	@$(MAKE) --no-print-directory setup-webui
 
 # ── SSH Tunnel (run on LOCAL machine) ────────────────────────────────────────
 .PHONY: tunnel
@@ -127,6 +129,12 @@ ask: _check_config
 image: _check_config
 	@chmod +x $(SCRIPTS)/image.sh
 	@bash $(SCRIPTS)/image.sh "$(PROMPT)"
+
+# ── Auto-setup Open WebUI: create admin login + install image gen (no browser) ─
+.PHONY: setup-webui
+setup-webui: _check_config
+	@chmod +x $(SCRIPTS)/setup_webui.sh
+	@bash $(SCRIPTS)/setup_webui.sh
 
 # ── Show the Open WebUI image-generation function (paste into Admin→Functions) ─
 .PHONY: pipe

@@ -62,12 +62,16 @@ nano config.env
 The things you need to set:
 
 ```env
-MODEL=nemotron-mini:4b       # small local model — see recommendations below
-VM_IP=YOUR_VM_IP_HERE        # your Oracle VM's public IP
-SSH_KEY=~/.ssh/id_rsa        # path to your SSH private key
+MODEL=nemotron-mini:4b        # small local model — see recommendations below
+VM_IP=YOUR_VM_IP_HERE         # your Oracle VM's public IP
+SSH_KEY=~/.ssh/id_rsa         # path to your SSH private key
 
-# Optional but recommended — unlocks big models + image generation:
-NVIDIA_API_KEY=nvapi-...     # free key from https://build.nvidia.com
+# Unlocks big models + image generation (free key from build.nvidia.com):
+NVIDIA_API_KEY=nvapi-...
+
+# Your login for the chat website (auto-created during install):
+WEBUI_EMAIL=you@example.com
+WEBUI_PASSWORD=a-strong-password
 ```
 
 > Leave `NVIDIA_API_KEY` blank and everything still works — you just get the small local models only.
@@ -282,20 +286,22 @@ Open WebUI (`http://your-vm-ip:3000`) is the front end. Everything is picked fro
 
 So it works exactly like you described: choose an image model → your prompt goes to image gen; choose Nemotron → normal chat. One interface, no mode switching.
 
-### One-time: add the image models to the dropdown
+### It's automatic — nothing to paste
 
-Image gen goes through a small **Open WebUI Function** (`openwebui/nvidia_image.py`) — Open WebUI can't talk to NVIDIA's image API without it. Install it once:
+`make install` sets all of this up for you. Set these in `config.env`:
 
-```bash
-make pipe          # prints the function (and copies it to your clipboard on macOS)
+```env
+WEBUI_EMAIL=you@example.com
+WEBUI_PASSWORD=a-strong-password
 ```
 
-Then in the browser:
-1. Open WebUI → **Admin Panel → Functions** → **+ (New Function)**
-2. Paste the contents of `openwebui/nvidia_image.py`, **Save**, and toggle it **on**
-3. The **🎨** image models now appear in the chat model dropdown
+During install, aibox:
+1. **Creates your admin account** with those credentials (first account = admin), and
+2. **Installs + enables the image-generation function** via Open WebUI's API — no browser steps, nothing to copy-paste.
 
-The API key is picked up automatically from the container (we pass `NVIDIA_API_KEY` in), so there's nothing else to configure. Images come back at full quality (1024×1024 by default, up to **1344×1344**) — click the image in chat and hit download.
+Then you just **open `http://your-vm-ip:3000`, log in, and start chatting.** The 🎨 image models are already in the dropdown; images render inline at full quality (1024×1024 default, up to **1344×1344**) — click one to download. Other people can sign up for their own accounts.
+
+> If auto-setup is ever skipped (e.g. WebUI was slow to boot), just run `make setup-webui` to finish it — or `make pipe` to paste the function manually.
 
 ### Or generate from the terminal
 

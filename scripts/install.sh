@@ -121,11 +121,16 @@ if [[ "${ENABLE_WEBUI:-false}" == "true" ]]; then
     -p 3000:8080 \
     --add-host=host.docker.internal:host-gateway \
     -e OLLAMA_BASE_URL="http://host.docker.internal:${OLLAMA_PORT}" \
+    -e ENABLE_SIGNUP=true \
     "${NVIDIA_ARGS[@]}" \
     -v open-webui:/app/backend/data \
     ghcr.io/open-webui/open-webui:main
 
   success "Open WebUI started. Visit: http://$(curl -s ifconfig.me):3000"
+
+  # Turnkey: create the admin login + install image generation (no browser setup)
+  info "Configuring Open WebUI (admin account + image generation)..."
+  bash "$SCRIPT_DIR/setup_webui.sh" || warn "WebUI auto-setup skipped — see 'make pipe'."
 fi
 
 # ── Done ─────────────────────────────────────────────────────────────────────
@@ -147,9 +152,10 @@ if [[ -n "${NVIDIA_API_KEY:-}" ]]; then
   echo -e "    ${CYAN}make ask   PROMPT=\"write a haiku about oracle cloud\"${RESET}"
   echo -e "    ${CYAN}make image PROMPT=\"a red panda hacking on a laptop\"${RESET}"
   echo ""
-  echo -e "  ${BOLD}For image generation inside the chat UI${RESET}, run ${CYAN}make pipe${RESET} and paste"
-  echo -e "  the function into Open WebUI → Admin Panel → Functions (one-time setup)."
-  echo -e "  Then run ${CYAN}make cleanup-install${RESET} for a daily image cleanup cron."
+  echo -e "  ${BOLD}Your chat site is ready.${RESET} Open it, log in with WEBUI_EMAIL /"
+  echo -e "  WEBUI_PASSWORD from config.env, and pick a 🎨 model to generate images."
+  echo -e "  (If auto-setup was skipped, run ${CYAN}make setup-webui${RESET}.)"
+  echo -e "  Optional: ${CYAN}make cleanup-install${RESET} for a daily image cleanup cron."
   echo ""
 else
   echo -e "  ${YELLOW}Tip:${RESET} add a free key from ${BOLD}https://build.nvidia.com${RESET} to"
