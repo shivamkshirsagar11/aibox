@@ -10,27 +10,35 @@ One config file. A few `make` commands. Done.
 
 ## What you get
 
-- **Ollama** on your VM running small **Nemotron** models on the CPU — private, offline, always-on
-- **NVIDIA hosted GPUs** for the heavy stuff your 12GB VM can't do:
-  - **Big Nemotron models** (49B / 120B) for serious chat, coding, and reasoning
-  - **Image generation** (FLUX / SDXL) via `make image`
-- **Open WebUI** — a ChatGPT-like browser interface at `http://your-vm-ip:3000`. Pick a Nemotron model from the dropdown for text chat, or a **🎨 image model** to generate pictures **inline in the chat** (with download) — local, hosted, and image models all in one selector
+- **All models run on NVIDIA's hosted GPUs** ([build.nvidia.com](https://build.nvidia.com), free credits) — nothing heavy runs on your VM:
+  - **Big Nemotron models** (up to **550B**) for chat, coding, and reasoning
+  - **Image generation** (FLUX / SD 3.5 / Qwen-Image)
+- **Open WebUI** — a ChatGPT-like site at `http://your-vm-ip:3000`. Pick a Nemotron model for text chat, or a **🎨 image model** to generate pictures **inline in the chat** (with download). Users just log in and chat — no commands.
+- **No Ollama needed.** Your VM is a thin front-end; the GPUs are NVIDIA's.
 - **Daily cleanup** that auto-deletes old generated images
-- **SSH tunnel** — use Ollama from your local machine at `http://localhost:11434`
-- Works with **VS Code**, **Python**, **Node.js**, anything OpenAI-compatible
+
+> Want small local models on the VM too? Set `ENABLE_OLLAMA=true` in `config.env` — it's off by default.
 
 ---
 
-## How it works — local + hosted GPU
+## How it works — hosted-only
 
-Your Oracle free-tier VM (2 OCPU / 12GB RAM, **no GPU**) is a great always-on hub, but it can't run large models or generate images at any usable speed. So aibox splits the work:
+Your Oracle free-tier VM (2 OCPU / 12GB RAM, **no GPU**) can't run large models or generate images at any usable speed. So it doesn't try — it just runs the **Open WebUI** front-end and sends every request to NVIDIA's GPUs:
 
-| Runs where | What | Speed |
-|------------|------|-------|
-| **On your VM (CPU)** | Small Nemotron models (`nemotron-mini:4b`, `nemotron-3-nano:4b`) via Ollama | Instant, private, free |
-| **On NVIDIA's GPUs** | Big Nemotron (49B/120B) + image generation | Fast, free credits, one API key |
+| Runs where | What |
+|------------|------|
+| **On your VM** | Just Open WebUI (a small Docker container) + this repo's `make` commands |
+| **On NVIDIA's GPUs** | Every model — Nemotron 550B for text, FLUX/SD/Qwen for images |
 
-The bridge to NVIDIA is **[build.nvidia.com](https://build.nvidia.com)** — an OpenAI-compatible endpoint with free starter credits. Grab a key (`nvapi-...`), drop it in `config.env`, and the big models + image gen light up. No GPU rental, no extra servers.
+The bridge is **[build.nvidia.com](https://build.nvidia.com)** — an OpenAI-compatible endpoint with free starter credits. Grab a key (`nvapi-...`), drop it in `config.env`, and everything lights up. No GPU rental, no Ollama, no local models.
+
+**Already installed Ollama from an earlier version?** Remove it in one command:
+
+```bash
+make remove-ollama
+```
+
+This stops and deletes Ollama + its models, frees the RAM/disk, flips `ENABLE_OLLAMA=false`, and restarts the web UI with no Ollama connection.
 
 ---
 
@@ -96,10 +104,9 @@ Oracle has its own firewall on top of the OS — you must open ports in both.
 
 | Source CIDR | Protocol | Destination Port |
 |-------------|----------|-----------------|
-| 0.0.0.0/0 | TCP | 11434 |
 | 0.0.0.0/0 | TCP | 3000 |
 
-> This is the #1 reason things don't work. Don't skip it.
+> This is the #1 reason things don't work. Don't skip it. (Only port **3000** is needed for the hosted-only setup. Add **11434** as well only if you enable Ollama.)
 
 ---
 
@@ -108,16 +115,15 @@ Oracle has its own firewall on top of the OS — you must open ports in both.
 ### On your VM
 
 ```bash
-make install        # Install everything (Ollama + model + WebUI)
-make start          # Start Ollama + WebUI
+make install        # Install everything (WebUI + hosted models + image gen)
+make start          # Start the web UI
 make stop           # Stop everything
 make status         # See what's running
 make webui          # (Re)start Open WebUI only
-make chat           # Quick terminal chat with your local model
-make models         # List all downloaded models
-make update-model   # Pull latest version of your current model
-make switch-model   # After changing MODEL in config.env, pull the new one
+make remove-ollama  # Remove Ollama from the VM (hosted-only; frees RAM/disk)
 ```
+
+> `make chat`, `models`, `switch-model` and the SSH `tunnel` only apply if you set `ENABLE_OLLAMA=true`.
 
 ### NVIDIA hosted GPU (needs NVIDIA_API_KEY)
 
@@ -233,7 +239,7 @@ curl http://localhost:11434/api/generate -d '{
 
 ## Model recommendations
 
-### Local — runs on the VM CPU (set as `MODEL`)
+### Local — runs on the VM CPU (only if `ENABLE_OLLAMA=true`; off by default)
 
 | Model | Best for | Size / RAM |
 |-------|----------|------------|

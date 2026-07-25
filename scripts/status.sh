@@ -17,26 +17,25 @@ echo -e "${BOLD}${CYAN}  vm-ai-setup — Status${RESET}"
 echo -e "${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
 
-# Ollama service
-if systemctl is-active --quiet ollama 2>/dev/null; then
-  echo -e "  Ollama service   ${GREEN}● running${RESET}"
+# Ollama (off by default — everything runs on NVIDIA's hosted GPUs)
+if [[ "${ENABLE_OLLAMA:-false}" != "true" ]]; then
+  if command -v ollama &>/dev/null; then
+    echo -e "  Ollama           ${YELLOW}○ disabled${RESET}  (still installed — run: make remove-ollama)"
+  else
+    echo -e "  Ollama           ${GREEN}● not installed${RESET}  (using NVIDIA hosted models)"
+  fi
 else
-  echo -e "  Ollama service   ${RED}✗ stopped${RESET}  →  run: sudo systemctl start ollama"
+  if systemctl is-active --quiet ollama 2>/dev/null; then
+    echo -e "  Ollama service   ${GREEN}● running${RESET}"
+  else
+    echo -e "  Ollama service   ${RED}✗ stopped${RESET}  →  run: sudo systemctl start ollama"
+  fi
+  echo ""
+  echo -e "  ${BOLD}Loaded models:${RESET}"
+  ollama list 2>/dev/null | tail -n +2 | while read -r line; do
+    echo -e "    ${CYAN}→${RESET} $line"
+  done
 fi
-
-# Ollama API
-if curl -s --max-time 3 "http://localhost:${OLLAMA_PORT}" &>/dev/null; then
-  echo -e "  Ollama API       ${GREEN}● reachable${RESET}  (port ${OLLAMA_PORT})"
-else
-  echo -e "  Ollama API       ${RED}✗ unreachable${RESET}"
-fi
-
-# Loaded models
-echo ""
-echo -e "  ${BOLD}Loaded models:${RESET}"
-ollama list 2>/dev/null | tail -n +2 | while read -r line; do
-  echo -e "    ${CYAN}→${RESET} $line"
-done
 
 # NVIDIA hosted GPU
 echo ""

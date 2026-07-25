@@ -24,17 +24,17 @@ help:
 	@echo "  $(BOLD)$(CYAN)vm-ai-setup$(RESET)  —  Run AI on your Oracle VM, use it from local machine"
 	@echo ""
 	@echo "  $(BOLD)SETUP (run these on your VM via SSH)$(RESET)"
-	@echo "    make install        Install Ollama + pull model + setup WebUI"
-	@echo "    make start          Start Ollama + WebUI"
-	@echo "    make stop           Stop Ollama + WebUI"
+	@echo "    make install        Install the web UI + wire up NVIDIA hosted models"
+	@echo "    make start          Start the web UI"
+	@echo "    make stop           Stop the web UI"
 	@echo "    make status         Show what's running on the VM"
 	@echo "    make webui          (Re)start the Open WebUI chat interface"
 	@echo ""
-	@echo "  $(BOLD)LOCAL MODEL (Ollama on the VM CPU)$(RESET)"
-	@echo "    make models         List all downloaded models"
-	@echo "    make chat           Quick terminal chat with your local model"
-	@echo "    make update-model   Pull latest version of current model"
-	@echo "    make switch-model   Change MODEL in config.env, then run this"
+	@echo "  $(BOLD)LOCAL MODELS (Ollama — off by default)$(RESET)"
+	@echo "    make remove-ollama  Remove Ollama from the VM (use NVIDIA hosted only)"
+	@echo "    make models         List downloaded models (if ENABLE_OLLAMA=true)"
+	@echo "    make chat           Terminal chat with a local model (if enabled)"
+	@echo "    make switch-model   Change MODEL in config.env, then pull it"
 	@echo ""
 	@echo "  $(BOLD)NVIDIA HOSTED GPU (big Nemotron + image gen)$(RESET)"
 	@echo "    make ask PROMPT=\"...\"     Ask a big Nemotron model on NVIDIA's GPUs"
@@ -61,8 +61,10 @@ install: _check_config
 # ── Start everything ─────────────────────────────────────────────────────────
 .PHONY: start
 start: _check_config
+ifeq ($(ENABLE_OLLAMA),true)
 	@echo "$(CYAN)Starting Ollama...$(RESET)"
 	@sudo systemctl start ollama && echo "  Ollama started."
+endif
 	@if docker ps -a --filter "name=open-webui" | grep -q open-webui; then \
 		docker start open-webui && echo "  Open WebUI started."; \
 	fi
@@ -70,8 +72,10 @@ start: _check_config
 # ── Stop everything ──────────────────────────────────────────────────────────
 .PHONY: stop
 stop:
+ifeq ($(ENABLE_OLLAMA),true)
 	@echo "$(CYAN)Stopping Ollama...$(RESET)"
 	@sudo systemctl stop ollama && echo "  Ollama stopped." || echo "  Ollama was not running."
+endif
 	@echo "$(CYAN)Stopping Open WebUI...$(RESET)"
 	@docker stop open-webui 2>/dev/null && echo "  Open WebUI stopped." || echo "  Open WebUI was not running."
 
@@ -91,7 +95,7 @@ webui: _check_config
 		--restart always \
 		-p 3000:8080 \
 		--add-host=host.docker.internal:host-gateway \
-		-e OLLAMA_BASE_URL="http://host.docker.internal:$(OLLAMA_PORT)" \
+		$(if $(filter true,$(ENABLE_OLLAMA)),-e OLLAMA_BASE_URL="http://host.docker.internal:$(OLLAMA_PORT)",-e ENABLE_OLLAMA_API=false) \
 		-e ENABLE_SIGNUP=true \
 		$(if $(NVIDIA_API_KEY),-e OPENAI_API_BASE_URL="$(NVIDIA_BASE_URL)" -e OPENAI_API_KEY="$(NVIDIA_API_KEY)" -e NVIDIA_API_KEY="$(NVIDIA_API_KEY)",) \
 		-v open-webui:/app/backend/data \
@@ -129,6 +133,14 @@ ask: _check_config
 image: _check_config
 	@chmod +x $(SCRIPTS)/image.sh
 	@bash $(SCRIPTS)/image.sh "$(PROMPT)"
+
+# ── Completely remove Ollama from the VM (platform runs on NVIDIA hosted only) ─
+.PHONY: remove-ollama
+remove-ollama: _check_config
+	@chmod +x $(SCRIPTS)/remove_ollama.sh
+	@bash $(SCRIPTS)/remove_ollama.sh
+	@echo "$(CYAN)Restarting Open WebUI without the Ollama connection...$(RESET)"
+	@$(MAKE) --no-print-directory webui
 
 # ── Auto-setup Open WebUI: create admin login + install image gen (no browser) ─
 .PHONY: setup-webui

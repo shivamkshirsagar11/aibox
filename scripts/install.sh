@@ -49,45 +49,51 @@ if ! command -v jq &>/dev/null; then
   sudo apt-get install -y -qq jq && success "jq installed."
 fi
 
-# ── Step 2: Install Ollama ───────────────────────────────────────────────────
-if command -v ollama &>/dev/null; then
-  warn "Ollama already installed — skipping."
-else
-  info "Installing Ollama..."
-  curl -fsSL https://ollama.ai/install.sh | sh
-  success "Ollama installed."
+# Guard: with Ollama off, NVIDIA is the only model source — a key is required.
+if [[ "${ENABLE_OLLAMA:-false}" != "true" && -z "${NVIDIA_API_KEY:-}" ]]; then
+  error "ENABLE_OLLAMA=false but NVIDIA_API_KEY is empty — there'd be no models. Set a key or enable Ollama."
 fi
 
-# ── Step 3: Configure Ollama to listen on 0.0.0.0 ───────────────────────────
-info "Configuring Ollama service..."
-sudo mkdir -p /etc/systemd/system/ollama.service.d
-sudo tee /etc/systemd/system/ollama.service.d/override.conf > /dev/null <<EOF
+if [[ "${ENABLE_OLLAMA:-false}" == "true" ]]; then
+  # ── Install Ollama ─────────────────────────────────────────────────────────
+  if command -v ollama &>/dev/null; then
+    warn "Ollama already installed — skipping."
+  else
+    info "Installing Ollama..."
+    curl -fsSL https://ollama.ai/install.sh | sh
+    success "Ollama installed."
+  fi
+
+  # ── Configure Ollama to listen on 0.0.0.0 ──────────────────────────────────
+  info "Configuring Ollama service..."
+  sudo mkdir -p /etc/systemd/system/ollama.service.d
+  sudo tee /etc/systemd/system/ollama.service.d/override.conf > /dev/null <<EOF
 [Service]
 Environment="OLLAMA_HOST=0.0.0.0:${OLLAMA_PORT}"
 EOF
-sudo systemctl daemon-reload
-sudo systemctl enable ollama
-sudo systemctl restart ollama
-success "Ollama service configured and started."
+  sudo systemctl daemon-reload
+  sudo systemctl enable ollama
+  sudo systemctl restart ollama
+  success "Ollama service configured and started."
 
-# ── Step 4: Open OS firewall for Ollama port ─────────────────────────────────
-info "Opening port $OLLAMA_PORT in iptables..."
-sudo iptables -I INPUT -p tcp --dport "$OLLAMA_PORT" -j ACCEPT 2>/dev/null || true
+  # ── Open OS firewall for Ollama port ───────────────────────────────────────
+  info "Opening port $OLLAMA_PORT in iptables..."
+  sudo iptables -I INPUT -p tcp --dport "$OLLAMA_PORT" -j ACCEPT 2>/dev/null || true
+  if command -v netfilter-persistent &>/dev/null; then
+    sudo netfilter-persistent save
+  elif dpkg -l | grep -q iptables-persistent; then
+    sudo sh -c 'iptables-save > /etc/iptables/rules.v4'
+  else
+    warn "iptables-persistent not installed — Ollama port rule resets on reboot."
+  fi
 
-# Persist iptables rules across reboots
-if command -v netfilter-persistent &>/dev/null; then
-  sudo netfilter-persistent save
-elif dpkg -l | grep -q iptables-persistent; then
-  sudo sh -c 'iptables-save > /etc/iptables/rules.v4'
+  # ── Pull the model ─────────────────────────────────────────────────────────
+  info "Pulling model: $MODEL  (this may take a few minutes...)"
+  ollama pull "$MODEL"
+  success "Model '$MODEL' ready."
 else
-  warn "iptables-persistent not installed — rules will reset on reboot."
-  warn "Run: sudo apt install iptables-persistent   to persist them."
+  info "Ollama disabled (ENABLE_OLLAMA=false) — all models run on NVIDIA's hosted GPUs."
 fi
-
-# ── Step 5: Pull the model ───────────────────────────────────────────────────
-info "Pulling model: $MODEL  (this may take a few minutes...)"
-ollama pull "$MODEL"
-success "Model '$MODEL' ready."
 
 # ── Step 6: Open WebUI (optional) ────────────────────────────────────────────
 if [[ "${ENABLE_WEBUI:-false}" == "true" ]]; then
@@ -115,12 +121,19 @@ if [[ "${ENABLE_WEBUI:-false}" == "true" ]]; then
     info "NVIDIA key detected — hosted Nemotron models will appear in the WebUI."
   fi
 
+  # Connect to Ollama only if it's enabled; otherwise disable it in the UI.
+  if [[ "${ENABLE_OLLAMA:-false}" == "true" ]]; then
+    OLLAMA_ARGS=(-e OLLAMA_BASE_URL="http://host.docker.internal:${OLLAMA_PORT}")
+  else
+    OLLAMA_ARGS=(-e ENABLE_OLLAMA_API=false)
+  fi
+
   docker run -d \
     --name open-webui \
     --restart always \
     -p 3000:8080 \
     --add-host=host.docker.internal:host-gateway \
-    -e OLLAMA_BASE_URL="http://host.docker.internal:${OLLAMA_PORT}" \
+    "${OLLAMA_ARGS[@]}" \
     -e ENABLE_SIGNUP=true \
     "${NVIDIA_ARGS[@]}" \
     -v open-webui:/app/backend/data \
