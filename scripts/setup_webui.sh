@@ -116,6 +116,19 @@ if echo "$cfg" | jq -e . >/dev/null 2>&1; then
   fi
 fi
 
+# ── Route background tasks (titles/tags/follow-ups) to a fast text model ───────
+# Otherwise they default to the *current* chat model — e.g. the image pipe —
+# which produces garbage follow-ups like "question 1?" on image generations.
+TASK_MODEL_ID="${TASK_MODEL:-meta/llama-3.1-8b-instruct}"
+tcfg=$(curl -sS "${AUTH[@]}" "$BASE/api/v1/tasks/config" 2>/dev/null)
+if echo "$tcfg" | jq -e . >/dev/null 2>&1; then
+  ntcfg=$(echo "$tcfg" | jq --arg m "$TASK_MODEL_ID" '.TASK_MODEL_EXTERNAL=$m | .TASK_MODEL=$m')
+  if curl -sS -X POST "$BASE/api/v1/tasks/config/update" "${AUTH[@]}" \
+       -H "Content-Type: application/json" -d "$ntcfg" >/dev/null 2>&1; then
+    ok "Titles/tags/follow-ups now use $TASK_MODEL_ID (not the image pipe)."
+  fi
+fi
+
 # ── Set an info banner about the shared NVIDIA free-tier rate limit ───────────
 BANNER_TEXT="${WEBUI_BANNER:-⚡ Text and images run on the NVIDIA free tier — about 40 requests/min shared by all users. If a generation fails, wait a minute and retry.}"
 banner_body=$(jq -n --arg content "$BANNER_TEXT" \

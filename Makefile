@@ -106,6 +106,7 @@ webui: _check_config
 		-e ENABLE_SIGNUP=true \
 		-e DEFAULT_USER_ROLE=user \
 		-e BYPASS_MODEL_ACCESS_CONTROL=true \
+		-e TASK_MODEL_EXTERNAL="$(if $(TASK_MODEL),$(TASK_MODEL),meta/llama-3.1-8b-instruct)" \
 		$(if $(NVIDIA_API_KEY),-e OPENAI_API_BASE_URL="$(NVIDIA_BASE_URL)" -e OPENAI_API_KEY="$(NVIDIA_API_KEY)" -e NVIDIA_API_KEY="$(NVIDIA_API_KEY)",) \
 		-v open-webui:/app/backend/data \
 		ghcr.io/open-webui/open-webui:main
