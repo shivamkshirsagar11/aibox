@@ -30,19 +30,31 @@ fi
 
 IMAGE_MODEL="${IMAGE_MODEL:-black-forest-labs/flux.1-dev}"
 IMAGE_STEPS="${IMAGE_STEPS:-50}"
+IMAGE_WIDTH="${IMAGE_WIDTH:-1024}"
+IMAGE_HEIGHT="${IMAGE_HEIGHT:-1024}"
 IMAGE_API_URL="${IMAGE_API_URL:-https://ai.api.nvidia.com/v1/genai}"
 OUT_DIR="${IMAGE_OUT_DIR:-./images}"
 mkdir -p "$OUT_DIR"
 OUT_BASE="$OUT_DIR/img_$(date +%Y%m%d_%H%M%S)"
 
+# flux.1-dev requires steps >= 5 (flux.1-schnell allows 1-4). Clamp for safety.
+case "$IMAGE_MODEL" in
+  *schnell*) : ;;                                   # schnell: low steps are fine
+  *) [ "$IMAGE_STEPS" -lt 5 ] && IMAGE_STEPS=5 ;;   # dev/others: enforce minimum
+esac
+
 echo -e "${CYAN}${BOLD}→ ${IMAGE_MODEL}${RESET}  ${CYAN}(NVIDIA hosted GPU)${RESET}"
 echo -e "  prompt: ${BOLD}${PROMPT}${RESET}"
+echo -e "  ${IMAGE_WIDTH}x${IMAGE_HEIGHT}, ${IMAGE_STEPS} steps"
 echo ""
 
+# Valid width/height for FLUX on NVIDIA: 768,832,896,960,1024,1088,1152,1216,1280,1344
 BODY=$(jq -n \
   --arg prompt "$PROMPT" \
   --argjson steps "$IMAGE_STEPS" \
-  '{prompt: $prompt, width: 1024, height: 1024, steps: $steps, seed: 0, cfg_scale: 3.5}')
+  --argjson w "$IMAGE_WIDTH" \
+  --argjson h "$IMAGE_HEIGHT" \
+  '{prompt: $prompt, width: $w, height: $h, steps: $steps, seed: 0, cfg_scale: 3.5}')
 
 RESP=$(curl -sS "${IMAGE_API_URL}/${IMAGE_MODEL}" \
   -H "Authorization: Bearer ${NVIDIA_API_KEY}" \

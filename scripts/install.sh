@@ -109,7 +109,9 @@ if [[ "${ENABLE_WEBUI:-false}" == "true" ]]; then
   # If an NVIDIA key is set, add hosted Nemotron models to the WebUI picker.
   NVIDIA_ARGS=()
   if [[ -n "${NVIDIA_API_KEY:-}" ]]; then
-    NVIDIA_ARGS=(-e OPENAI_API_BASE_URL="${NVIDIA_BASE_URL}" -e OPENAI_API_KEY="${NVIDIA_API_KEY}")
+    NVIDIA_ARGS=(-e OPENAI_API_BASE_URL="${NVIDIA_BASE_URL}" \
+                 -e OPENAI_API_KEY="${NVIDIA_API_KEY}" \
+                 -e NVIDIA_API_KEY="${NVIDIA_API_KEY}")
     info "NVIDIA key detected — hosted Nemotron models will appear in the WebUI."
   fi
 
@@ -144,6 +146,10 @@ if [[ -n "${NVIDIA_API_KEY:-}" ]]; then
   echo -e "  ${BOLD}NVIDIA hosted GPU is enabled.${RESET} Try:"
   echo -e "    ${CYAN}make ask   PROMPT=\"write a haiku about oracle cloud\"${RESET}"
   echo -e "    ${CYAN}make image PROMPT=\"a red panda hacking on a laptop\"${RESET}"
+  echo ""
+  echo -e "  ${BOLD}For image generation inside the chat UI${RESET}, run ${CYAN}make pipe${RESET} and paste"
+  echo -e "  the function into Open WebUI → Admin Panel → Functions (one-time setup)."
+  echo -e "  Then run ${CYAN}make cleanup-install${RESET} for a daily image cleanup cron."
   echo ""
 else
   echo -e "  ${YELLOW}Tip:${RESET} add a free key from ${BOLD}https://build.nvidia.com${RESET} to"

@@ -39,6 +39,11 @@ help:
 	@echo "  $(BOLD)NVIDIA HOSTED GPU (big Nemotron + image gen)$(RESET)"
 	@echo "    make ask PROMPT=\"...\"     Ask a big Nemotron model on NVIDIA's GPUs"
 	@echo "    make image PROMPT=\"...\"   Generate an image (FLUX/SDXL) on NVIDIA's GPUs"
+	@echo "    make pipe               Show the Open WebUI image function to paste in"
+	@echo ""
+	@echo "  $(BOLD)CLEANUP$(RESET)"
+	@echo "    make cleanup            Delete generated images older than CLEANUP_DAYS"
+	@echo "    make cleanup-install    Install a daily cron that runs cleanup"
 	@echo ""
 	@echo "  $(BOLD)LOCAL MACHINE$(RESET)"
 	@echo "    make tunnel         SSH tunnel — use Ollama at localhost:$(OLLAMA_PORT)"
@@ -87,7 +92,7 @@ webui: _check_config
 		-p 3000:8080 \
 		--add-host=host.docker.internal:host-gateway \
 		-e OLLAMA_BASE_URL="http://host.docker.internal:$(OLLAMA_PORT)" \
-		$(if $(NVIDIA_API_KEY),-e OPENAI_API_BASE_URL="$(NVIDIA_BASE_URL)" -e OPENAI_API_KEY="$(NVIDIA_API_KEY)",) \
+		$(if $(NVIDIA_API_KEY),-e OPENAI_API_BASE_URL="$(NVIDIA_BASE_URL)" -e OPENAI_API_KEY="$(NVIDIA_API_KEY)" -e NVIDIA_API_KEY="$(NVIDIA_API_KEY)",) \
 		-v open-webui:/app/backend/data \
 		ghcr.io/open-webui/open-webui:main
 	@echo "$(GREEN)Open WebUI started at http://$(shell curl -s ifconfig.me):3000$(RESET)"
@@ -122,6 +127,39 @@ ask: _check_config
 image: _check_config
 	@chmod +x $(SCRIPTS)/image.sh
 	@bash $(SCRIPTS)/image.sh "$(PROMPT)"
+
+# ── Show the Open WebUI image-generation function (paste into Admin→Functions) ─
+.PHONY: pipe
+pipe:
+	@echo "$(CYAN)Open WebUI image function → paste into: Admin Panel → Functions → + New$(RESET)"
+	@echo "$(CYAN)File: openwebui/nvidia_image.py$(RESET)"
+	@echo "$(GREEN)After saving + enabling, the FLUX/Qwen/SD models appear in the chat dropdown.$(RESET)"
+	@command -v pbcopy >/dev/null 2>&1 && pbcopy < $(SCRIPTS)/../openwebui/nvidia_image.py && echo "$(GREEN)(copied to clipboard)$(RESET)" || true
+	@echo ""
+	@echo "----------------------------------------------------------------------"
+	@cat openwebui/nvidia_image.py
+
+# ── Delete generated images older than CLEANUP_DAYS (run now) ─────────────────
+.PHONY: cleanup
+cleanup: _check_config
+	@chmod +x $(SCRIPTS)/cleanup.sh
+	@bash $(SCRIPTS)/cleanup.sh
+
+# ── Install a daily cron job that runs the cleanup automatically ──────────────
+.PHONY: cleanup-install
+cleanup-install: _check_config
+	@REPO="$(CURDIR)"; \
+	LINE="30 3 * * * cd $$REPO && bash scripts/cleanup.sh >> /tmp/aibox-cleanup.log 2>&1 # aibox-cleanup"; \
+	( crontab -l 2>/dev/null | grep -v 'aibox-cleanup'; echo "$$LINE" ) | crontab - ; \
+	echo "$(GREEN)Installed daily cleanup cron (03:30). Logs: /tmp/aibox-cleanup.log$(RESET)"; \
+	echo "  View:   crontab -l"; \
+	echo "  Remove: make cleanup-uninstall"
+
+# ── Remove the daily cleanup cron job ────────────────────────────────────────
+.PHONY: cleanup-uninstall
+cleanup-uninstall:
+	@( crontab -l 2>/dev/null | grep -v 'aibox-cleanup' ) | crontab - || true
+	@echo "$(GREEN)Removed the aibox cleanup cron job.$(RESET)"
 
 # ── Update current model to latest version ───────────────────────────────────
 .PHONY: update-model

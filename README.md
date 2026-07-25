@@ -14,7 +14,8 @@ One config file. A few `make` commands. Done.
 - **NVIDIA hosted GPUs** for the heavy stuff your 12GB VM can't do:
   - **Big Nemotron models** (49B / 120B) for serious chat, coding, and reasoning
   - **Image generation** (FLUX / SDXL) via `make image`
-- **Open WebUI** — a ChatGPT-like browser interface at `http://your-vm-ip:3000`, with local *and* hosted models in one dropdown
+- **Open WebUI** — a ChatGPT-like browser interface at `http://your-vm-ip:3000`. Pick a Nemotron model from the dropdown for text chat, or a **🎨 image model** to generate pictures **inline in the chat** (with download) — local, hosted, and image models all in one selector
+- **Daily cleanup** that auto-deletes old generated images
 - **SSH tunnel** — use Ollama from your local machine at `http://localhost:11434`
 - Works with **VS Code**, **Python**, **Node.js**, anything OpenAI-compatible
 
@@ -269,25 +270,60 @@ make chat
 
 ---
 
-## Image generation
+## The chat platform — text *and* images in one UI
 
-Your CPU-only VM can't generate images at any usable speed, so aibox offloads it to NVIDIA's GPUs. Just need `NVIDIA_API_KEY` set.
+Open WebUI (`http://your-vm-ip:3000`) is the front end. Everything is picked from the **model dropdown** at the top of the chat:
+
+| Pick this model | What happens |
+|-----------------|--------------|
+| `nvidia/nemotron-3-ultra-550b-a55b` (and other Nemotron entries) | Normal **text chat** — responses render as markdown (code blocks, tables, math) |
+| `nemotron-mini:4b` / other local models | Text chat on your VM's CPU (private, offline) |
+| **🎨 FLUX.1-dev** / 🎨 Qwen-Image / 🎨 SD 3.5 Large | **Image generation** — type a prompt, the image renders **inline in the chat** with a **download button**, full quality |
+
+So it works exactly like you described: choose an image model → your prompt goes to image gen; choose Nemotron → normal chat. One interface, no mode switching.
+
+### One-time: add the image models to the dropdown
+
+Image gen goes through a small **Open WebUI Function** (`openwebui/nvidia_image.py`) — Open WebUI can't talk to NVIDIA's image API without it. Install it once:
+
+```bash
+make pipe          # prints the function (and copies it to your clipboard on macOS)
+```
+
+Then in the browser:
+1. Open WebUI → **Admin Panel → Functions** → **+ (New Function)**
+2. Paste the contents of `openwebui/nvidia_image.py`, **Save**, and toggle it **on**
+3. The **🎨** image models now appear in the chat model dropdown
+
+The API key is picked up automatically from the container (we pass `NVIDIA_API_KEY` in), so there's nothing else to configure. Images come back at full quality (1024×1024 by default, up to **1344×1344**) — click the image in chat and hit download.
+
+### Or generate from the terminal
 
 ```bash
 make image PROMPT="a cozy cyberpunk coffee shop, neon rain, cinematic"
 ```
 
-The PNG lands in `./images/` (and opens automatically if you're on a desktop). Change the model + steps in `config.env`:
+Saves the file to `./images/` and opens it on a desktop. Tune `config.env`:
 
-| `IMAGE_MODEL` | `IMAGE_STEPS` | Notes |
-|---------------|:-------------:|-------|
-| `black-forest-labs/flux.1-dev` | `50` | 12B state-of-the-art quality. **Default.** |
-| `black-forest-labs/flux.1-schnell` | `4` | Distilled — fast 4-step drafts |
-| `stabilityai/stable-diffusion-3.5-large` | `50` | 8B, rich artistic styles |
+| Setting | Options |
+|---------|---------|
+| `IMAGE_MODEL` | `black-forest-labs/flux.1-dev` (best), `…/flux.1-schnell` (fast), `qwen/qwen-image` (text in images), `stabilityai/stable-diffusion-3.5-large` |
+| `IMAGE_STEPS` | `50` for `flux.1-dev` (min 5); `4` for `flux.1-schnell` |
+| `IMAGE_WIDTH` / `IMAGE_HEIGHT` | one of `768 832 896 960 1024 1088 1152 1216 1280 1344` |
 
-> `flux.1-dev` is the best quality but needs ~50 steps (a few seconds on NVIDIA's GPUs). For quick drafts, switch to `flux.1-schnell` with `IMAGE_STEPS=4`.
+> FLUX returns **JPEG** (NVIDIA's delivery format) — we save the exact bytes with no re-compression, so it's the max quality the API gives. There's no lossless/PNG option on the hosted endpoint.
 
-**Want image gen inside the chat UI too?** Open WebUI supports it via **Settings → Images**. Point it at a ComfyUI backend if you run one, or use the `make image` command for a no-fuss GPU-hosted option.
+### Housekeeping — auto-delete old images
+
+Generated images (both `./images/` and the ones stored inside Open WebUI) are cleaned on a schedule so they don't pile up:
+
+```bash
+make cleanup           # delete images older than CLEANUP_DAYS (default 1) now
+make cleanup-install   # install a daily cron (03:30) that does it automatically
+make cleanup-uninstall # remove that cron
+```
+
+The cleanup only touches generated images — it never deletes your uploaded documents or chat history.
 
 ---
 
@@ -325,3 +361,15 @@ The PNG lands in `./images/` (and opens automatically if you're on a desktop). C
 
 **`make image` couldn't find image data in the response?**
 → Different image models return slightly different shapes. Try a different `IMAGE_MODEL` in `config.env` (e.g. `black-forest-labs/flux.1-schnell`).
+
+**`make image` fails with `steps` error?**
+→ `flux.1-dev` requires `IMAGE_STEPS` ≥ 5. Only `flux.1-schnell` allows 1–4 steps.
+
+**🎨 image models don't show in the chat dropdown?**
+→ Make sure you pasted `openwebui/nvidia_image.py` into Admin → Functions **and toggled it on**. Re-check that `make webui` ran *after* `NVIDIA_API_KEY` was set (the key is passed into the container for the function to use).
+
+**Image gen in chat says the API key is empty?**
+→ The function reads `NVIDIA_API_KEY` from the container env. If it's blank, open the function's ⚙️ **Valves** in Open WebUI and paste your `nvapi-...` key there directly.
+
+**Hitting rate limits?**
+→ NVIDIA's free tier is ~40 requests/minute shared across all models. Space out heavy image batches.
