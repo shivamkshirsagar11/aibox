@@ -104,6 +104,18 @@ if [[ "$ACTIVE" != "true" ]]; then
 fi
 ok "Image models are now enabled in the chat model dropdown."
 
+# ── Enforce open signup + auto-approve (DB config overrides env after 1st boot)─
+# We fetch the live admin config, flip the two fields, and POST it back so the
+# setting survives container updates (the volume persists the DB config).
+cfg=$(curl -sS "${AUTH[@]}" "$BASE/api/v1/auths/admin/config" 2>/dev/null)
+if echo "$cfg" | jq -e . >/dev/null 2>&1; then
+  newcfg=$(echo "$cfg" | jq '.ENABLE_SIGNUP=true | .DEFAULT_USER_ROLE="user"')
+  if curl -sS -X POST "$BASE/api/v1/auths/admin/config" "${AUTH[@]}" \
+       -H "Content-Type: application/json" -d "$newcfg" >/dev/null 2>&1; then
+    ok "Signup is ON and new users are auto-approved (role=user)."
+  fi
+fi
+
 # ── Set an info banner about the shared NVIDIA free-tier rate limit ───────────
 BANNER_TEXT="${WEBUI_BANNER:-⚡ Text and images run on the NVIDIA free tier — about 40 requests/min shared by all users. If a generation fails, wait a minute and retry.}"
 banner_body=$(jq -n --arg content "$BANNER_TEXT" \

@@ -104,6 +104,8 @@ webui: _check_config
 		--add-host=host.docker.internal:host-gateway \
 		$(if $(filter true,$(ENABLE_OLLAMA)),-e OLLAMA_BASE_URL="http://host.docker.internal:$(OLLAMA_PORT)",-e ENABLE_OLLAMA_API=false) \
 		-e ENABLE_SIGNUP=true \
+		-e DEFAULT_USER_ROLE=user \
+		-e BYPASS_MODEL_ACCESS_CONTROL=true \
 		$(if $(NVIDIA_API_KEY),-e OPENAI_API_BASE_URL="$(NVIDIA_BASE_URL)" -e OPENAI_API_KEY="$(NVIDIA_API_KEY)" -e NVIDIA_API_KEY="$(NVIDIA_API_KEY)",) \
 		-v open-webui:/app/backend/data \
 		ghcr.io/open-webui/open-webui:main
