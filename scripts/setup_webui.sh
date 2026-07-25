@@ -33,7 +33,7 @@ command -v jq >/dev/null 2>&1 || { warn "jq not found — skipping WebUI auto-se
 [[ -f "$FUNC_FILE" ]] || { warn "function file missing — skipping."; exit 0; }
 
 # ── Wait for Open WebUI to answer ────────────────────────────────────────────
-info "Waiting for Open WebUI at $BASE ..."
+info "Waiting for Open WebUI to boot on the VM (checking ${BASE} from inside the VM)..."
 for i in $(seq 1 40); do
   curl -sf "$BASE/health" >/dev/null 2>&1 && break
   sleep 3
