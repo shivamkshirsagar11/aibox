@@ -33,6 +33,7 @@ help:
 	@echo "    make stop           Stop the web UI"
 	@echo "    make status         Show what's running on the VM"
 	@echo "    make webui          (Re)start the Open WebUI chat interface"
+	@echo "    make update-webui   Update Open WebUI (keeps accounts/chats)"
 	@echo "    make reset-webui    Wipe WebUI accounts/chats, recreate fresh"
 	@echo ""
 	@echo "  $(BOLD)LOCAL MODELS (Ollama — off by default)$(RESET)"
@@ -111,6 +112,13 @@ webui: _check_config
 		echo "$(GREEN)  NVIDIA hosted Nemotron models are now in the model picker.$(RESET)"; \
 	fi
 	@$(MAKE) --no-print-directory setup-webui
+
+# ── Update Open WebUI to the latest version (keeps accounts/chats/functions) ──
+.PHONY: update-webui
+update-webui: _check_config
+	@echo "$(CYAN)Pulling the latest Open WebUI image...$(RESET)"
+	@docker pull ghcr.io/open-webui/open-webui:main
+	@$(MAKE) --no-print-directory webui
 
 # ── Reset the WebUI: wipe accounts/chats, recreate fresh (admin from config) ──
 .PHONY: reset-webui
