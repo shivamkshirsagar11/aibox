@@ -1,6 +1,9 @@
 # Don't commit personal config
 config.env
 
+# Generated images
+images/
+
 # OS
 .DS_Store
 Thumbs.db

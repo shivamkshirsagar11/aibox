@@ -38,6 +38,14 @@ ollama list 2>/dev/null | tail -n +2 | while read -r line; do
   echo -e "    ${CYAN}→${RESET} $line"
 done
 
+# NVIDIA hosted GPU
+echo ""
+if [[ -n "${NVIDIA_API_KEY:-}" ]]; then
+  echo -e "  NVIDIA hosted    ${GREEN}● enabled${RESET}  (${NVIDIA_MODEL:-?} + image gen)"
+else
+  echo -e "  NVIDIA hosted    ${YELLOW}○ disabled${RESET}  (set NVIDIA_API_KEY in config.env)"
+fi
+
 # Open WebUI
 echo ""
 if docker ps --filter "name=open-webui" --filter "status=running" | grep -q open-webui 2>/dev/null; then

@@ -43,6 +43,12 @@ info "Updating system packages..."
 sudo apt-get update -qq && sudo apt-get upgrade -y -qq
 success "System updated."
 
+# jq is used by 'make ask' and 'make image' to talk to NVIDIA's hosted API.
+if ! command -v jq &>/dev/null; then
+  info "Installing jq..."
+  sudo apt-get install -y -qq jq && success "jq installed."
+fi
+
 # ── Step 2: Install Ollama ───────────────────────────────────────────────────
 if command -v ollama &>/dev/null; then
   warn "Ollama already installed — skipping."
@@ -100,12 +106,20 @@ if [[ "${ENABLE_WEBUI:-false}" == "true" ]]; then
   # Remove old container if exists
   docker rm -f open-webui 2>/dev/null || true
 
+  # If an NVIDIA key is set, add hosted Nemotron models to the WebUI picker.
+  NVIDIA_ARGS=()
+  if [[ -n "${NVIDIA_API_KEY:-}" ]]; then
+    NVIDIA_ARGS=(-e OPENAI_API_BASE_URL="${NVIDIA_BASE_URL}" -e OPENAI_API_KEY="${NVIDIA_API_KEY}")
+    info "NVIDIA key detected — hosted Nemotron models will appear in the WebUI."
+  fi
+
   docker run -d \
     --name open-webui \
     --restart always \
     -p 3000:8080 \
     --add-host=host.docker.internal:host-gateway \
     -e OLLAMA_BASE_URL="http://host.docker.internal:${OLLAMA_PORT}" \
+    "${NVIDIA_ARGS[@]}" \
     -v open-webui:/app/backend/data \
     ghcr.io/open-webui/open-webui:main
 
@@ -126,3 +140,13 @@ echo -e "  Add TCP port ${OLLAMA_PORT}  (and 3000 if WebUI enabled)"
 echo ""
 echo -e "  On your local machine, run:  ${CYAN}make tunnel${RESET}"
 echo ""
+if [[ -n "${NVIDIA_API_KEY:-}" ]]; then
+  echo -e "  ${BOLD}NVIDIA hosted GPU is enabled.${RESET} Try:"
+  echo -e "    ${CYAN}make ask   PROMPT=\"write a haiku about oracle cloud\"${RESET}"
+  echo -e "    ${CYAN}make image PROMPT=\"a red panda hacking on a laptop\"${RESET}"
+  echo ""
+else
+  echo -e "  ${YELLOW}Tip:${RESET} add a free key from ${BOLD}https://build.nvidia.com${RESET} to"
+  echo -e "       config.env (NVIDIA_API_KEY) to unlock big Nemotron models + image gen."
+  echo ""
+fi

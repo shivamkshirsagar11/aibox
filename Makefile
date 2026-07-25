@@ -30,11 +30,15 @@ help:
 	@echo "    make status         Show what's running on the VM"
 	@echo "    make webui          (Re)start the Open WebUI chat interface"
 	@echo ""
-	@echo "  $(BOLD)MODEL$(RESET)"
+	@echo "  $(BOLD)LOCAL MODEL (Ollama on the VM CPU)$(RESET)"
 	@echo "    make models         List all downloaded models"
-	@echo "    make chat           Quick terminal chat with your model"
+	@echo "    make chat           Quick terminal chat with your local model"
 	@echo "    make update-model   Pull latest version of current model"
 	@echo "    make switch-model   Change MODEL in config.env, then run this"
+	@echo ""
+	@echo "  $(BOLD)NVIDIA HOSTED GPU (big Nemotron + image gen)$(RESET)"
+	@echo "    make ask PROMPT=\"...\"     Ask a big Nemotron model on NVIDIA's GPUs"
+	@echo "    make image PROMPT=\"...\"   Generate an image (FLUX/SDXL) on NVIDIA's GPUs"
 	@echo ""
 	@echo "  $(BOLD)LOCAL MACHINE$(RESET)"
 	@echo "    make tunnel         SSH tunnel — use Ollama at localhost:$(OLLAMA_PORT)"
@@ -83,9 +87,13 @@ webui: _check_config
 		-p 3000:8080 \
 		--add-host=host.docker.internal:host-gateway \
 		-e OLLAMA_BASE_URL="http://host.docker.internal:$(OLLAMA_PORT)" \
+		$(if $(NVIDIA_API_KEY),-e OPENAI_API_BASE_URL="$(NVIDIA_BASE_URL)" -e OPENAI_API_KEY="$(NVIDIA_API_KEY)",) \
 		-v open-webui:/app/backend/data \
 		ghcr.io/open-webui/open-webui:main
 	@echo "$(GREEN)Open WebUI started at http://$(shell curl -s ifconfig.me):3000$(RESET)"
+	@if [ -n "$(NVIDIA_API_KEY)" ]; then \
+		echo "$(GREEN)  NVIDIA hosted Nemotron models are now in the model picker.$(RESET)"; \
+	fi
 
 # ── SSH Tunnel (run on LOCAL machine) ────────────────────────────────────────
 .PHONY: tunnel
@@ -102,6 +110,18 @@ models:
 .PHONY: chat
 chat: _check_config
 	@ollama run $(MODEL)
+
+# ── Ask a BIG Nemotron model on NVIDIA's hosted GPUs ─────────────────────────
+.PHONY: ask
+ask: _check_config
+	@chmod +x $(SCRIPTS)/ask.sh
+	@bash $(SCRIPTS)/ask.sh "$(PROMPT)"
+
+# ── Generate an image on NVIDIA's hosted GPUs (FLUX / SDXL) ───────────────────
+.PHONY: image
+image: _check_config
+	@chmod +x $(SCRIPTS)/image.sh
+	@bash $(SCRIPTS)/image.sh "$(PROMPT)"
 
 # ── Update current model to latest version ───────────────────────────────────
 .PHONY: update-model

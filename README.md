@@ -1,6 +1,8 @@
 # aibox
 
-Run a state-of-the-art AI model on your Oracle Cloud VM and use it from your local machine — with zero brain usage.
+Run AI on your Oracle Cloud VM and use it from your local machine — with zero brain usage.
+
+A **hybrid** setup: small **NVIDIA Nemotron** models run locally on your VM's CPU, while the *big* Nemotron models and **image generation** run on **NVIDIA's hosted GPUs** (free credits) — all behind one chat interface.
 
 One config file. A few `make` commands. Done.
 
@@ -8,10 +10,26 @@ One config file. A few `make` commands. Done.
 
 ## What you get
 
-- **Ollama** running on your VM with a best-in-class coding + chat model
-- **Open WebUI** — a ChatGPT-like browser interface at `http://your-vm-ip:3000`
+- **Ollama** on your VM running small **Nemotron** models on the CPU — private, offline, always-on
+- **NVIDIA hosted GPUs** for the heavy stuff your 12GB VM can't do:
+  - **Big Nemotron models** (49B / 120B) for serious chat, coding, and reasoning
+  - **Image generation** (FLUX / SDXL) via `make image`
+- **Open WebUI** — a ChatGPT-like browser interface at `http://your-vm-ip:3000`, with local *and* hosted models in one dropdown
 - **SSH tunnel** — use Ollama from your local machine at `http://localhost:11434`
 - Works with **VS Code**, **Python**, **Node.js**, anything OpenAI-compatible
+
+---
+
+## How it works — local + hosted GPU
+
+Your Oracle free-tier VM (2 OCPU / 12GB RAM, **no GPU**) is a great always-on hub, but it can't run large models or generate images at any usable speed. So aibox splits the work:
+
+| Runs where | What | Speed |
+|------------|------|-------|
+| **On your VM (CPU)** | Small Nemotron models (`nemotron-mini:4b`, `nemotron-3-nano:4b`) via Ollama | Instant, private, free |
+| **On NVIDIA's GPUs** | Big Nemotron (49B/120B) + image generation | Fast, free credits, one API key |
+
+The bridge to NVIDIA is **[build.nvidia.com](https://build.nvidia.com)** — an OpenAI-compatible endpoint with free starter credits. Grab a key (`nvapi-...`), drop it in `config.env`, and the big models + image gen light up. No GPU rental, no extra servers.
 
 ---
 
@@ -40,13 +58,18 @@ cp config.env.example config.env
 nano config.env
 ```
 
-The only things you need to set:
+The things you need to set:
 
 ```env
-MODEL=qwen2.5-coder:7b    # see model recommendations below
-VM_IP=YOUR_VM_IP_HERE     # your Oracle VM's public IP
-SSH_KEY=~/.ssh/id_rsa     # path to your SSH private key
+MODEL=nemotron-mini:4b       # small local model — see recommendations below
+VM_IP=YOUR_VM_IP_HERE        # your Oracle VM's public IP
+SSH_KEY=~/.ssh/id_rsa        # path to your SSH private key
+
+# Optional but recommended — unlocks big models + image generation:
+NVIDIA_API_KEY=nvapi-...     # free key from https://build.nvidia.com
 ```
+
+> Leave `NVIDIA_API_KEY` blank and everything still works — you just get the small local models only.
 
 ### Step 3 — Install
 
@@ -54,7 +77,7 @@ SSH_KEY=~/.ssh/id_rsa     # path to your SSH private key
 make install
 ```
 
-That's it. Ollama is installed, model is downloaded, WebUI is running.
+That's it. Ollama is installed, the local model is downloaded, WebUI is running, and (if you set an NVIDIA key) the hosted models are wired in.
 
 ---
 
@@ -85,11 +108,20 @@ make start          # Start Ollama + WebUI
 make stop           # Stop everything
 make status         # See what's running
 make webui          # (Re)start Open WebUI only
-make chat           # Quick terminal chat with your model
+make chat           # Quick terminal chat with your local model
 make models         # List all downloaded models
 make update-model   # Pull latest version of your current model
 make switch-model   # After changing MODEL in config.env, pull the new one
 ```
+
+### NVIDIA hosted GPU (needs NVIDIA_API_KEY)
+
+```bash
+make ask   PROMPT="refactor this function for readability: ..."   # big Nemotron on NVIDIA GPUs
+make image PROMPT="a red panda coding on a laptop, studio lighting"  # generate an image
+```
+
+Images are saved to `./images/` (and opened automatically on a desktop machine).
 
 ### On your local machine
 
@@ -128,7 +160,7 @@ Hit `http://your-vm-ip:11434` directly. Make sure Oracle firewall ports are open
     {
       "title": "aibox",
       "provider": "ollama",
-      "model": "qwen2.5-coder:7b",
+      "model": "nemotron-mini:4b",
       "apiBase": "http://localhost:11434"
     }
   ]
@@ -148,8 +180,22 @@ from openai import OpenAI
 client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
 
 response = client.chat.completions.create(
-    model="qwen2.5-coder:7b",
+    model="nemotron-mini:4b",
     messages=[{"role": "user", "content": "Explain async/await in Python"}]
+)
+print(response.choices[0].message.content)
+```
+
+**Same code, but hitting a big Nemotron model on NVIDIA's GPUs** — just swap the base URL and key:
+
+```python
+client = OpenAI(
+    base_url="https://integrate.api.nvidia.com/v1",
+    api_key="nvapi-...",   # your NVIDIA_API_KEY
+)
+response = client.chat.completions.create(
+    model="nvidia/llama-3.3-nemotron-super-49b-v1",
+    messages=[{"role": "user", "content": "Design a rate limiter"}],
 )
 print(response.choices[0].message.content)
 ```
@@ -162,7 +208,7 @@ import OpenAI from "openai";
 const client = new OpenAI({ baseURL: "http://localhost:11434/v1", apiKey: "ollama" });
 
 const res = await client.chat.completions.create({
-  model: "qwen2.5-coder:7b",
+  model: "nemotron-mini:4b",
   messages: [{ role: "user", content: "Write a binary search in JS" }],
 });
 console.log(res.choices[0].message.content);
@@ -172,7 +218,7 @@ console.log(res.choices[0].message.content);
 
 ```bash
 curl http://localhost:11434/api/generate -d '{
-  "model": "qwen2.5-coder:7b",
+  "model": "nemotron-mini:4b",
   "prompt": "Write a Python hello world",
   "stream": false
 }'
@@ -182,21 +228,35 @@ curl http://localhost:11434/api/generate -d '{
 
 ## Model recommendations
 
-| Model | Best for | RAM needed |
+### Local — runs on the VM CPU (set as `MODEL`)
+
+| Model | Best for | Size / RAM |
 |-------|----------|------------|
-| `qwen2.5-coder:7b` | Coding — default, highly recommended | ~5 GB |
-| `llama3.1:8b` | Chat + general reasoning | ~6 GB |
-| `mistral:7b` | Fast, lightweight, great all-rounder | ~4 GB |
-| `deepseek-r1:7b` | Step-by-step problem solving | ~5 GB |
-| `nomic-embed-text` | Embeddings for RAG / semantic search | ~1 GB |
+| `nemotron-mini:4b` | NVIDIA Nemotron — chat, RAG, function calling. **Default.** | ~2.7 GB |
+| `nemotron-3-nano:4b` | Newer Nemotron — reasoning + non-reasoning, 256K context | ~2.8 GB |
+| `qwen2.5-coder:7b` | Strong coding model | ~5 GB |
+| `llama3.1:8b` | General chat + reasoning | ~6 GB |
+| `mistral:7b` | Fast, lightweight all-rounder | ~4 GB |
 
-> Stick to 7B or smaller models on a 12GB RAM VM. Don't run two models at once.
+> On a 12GB VM stick to 4B models for comfortable headroom (WebUI + OS also need RAM). 7B works but is tight — don't run two models at once. The 30B Nemotron (`nemotron-3-nano:30b`, ~24GB) will **not** fit — use the hosted version instead.
 
-### Switching models
+### Hosted on NVIDIA's GPUs — the big ones (set as `NVIDIA_MODEL`)
+
+These run on [build.nvidia.com](https://build.nvidia.com), not your VM, so size doesn't matter:
+
+| Model | Best for |
+|-------|----------|
+| `nvidia/llama-3.3-nemotron-super-49b-v1` | Great all-round chat + reasoning. **Default.** |
+| `nvidia/nemotron-3-super-120b-a12b` | Most capable — top-tier reasoning & agentic work |
+| `nvidia/llama-3.1-nemotron-70b-instruct` | Strong instruction following |
+
+Browse the full catalog (and copy exact model IDs) at [build.nvidia.com/models](https://build.nvidia.com). Use them via `make ask` or straight from the Open WebUI model dropdown.
+
+### Switching the local model
 
 ```bash
 # 1. Edit config.env
-nano config.env   # change MODEL=llama3.1:8b
+nano config.env   # change MODEL=nemotron-3-nano:4b
 
 # 2. Pull it
 make switch-model
@@ -204,6 +264,26 @@ make switch-model
 # 3. Try it
 make chat
 ```
+
+---
+
+## Image generation
+
+Your CPU-only VM can't generate images at any usable speed, so aibox offloads it to NVIDIA's GPUs. Just need `NVIDIA_API_KEY` set.
+
+```bash
+make image PROMPT="a cozy cyberpunk coffee shop, neon rain, cinematic"
+```
+
+The PNG lands in `./images/` (and opens automatically if you're on a desktop). Change the model in `config.env`:
+
+| `IMAGE_MODEL` | Notes |
+|---------------|-------|
+| `black-forest-labs/flux.1-schnell` | Fast, 4-step. **Default.** |
+| `black-forest-labs/flux.1-dev` | Higher quality, slower |
+| `stabilityai/stable-diffusion-3.5-large` | Stable Diffusion 3.5 |
+
+**Want image gen inside the chat UI too?** Open WebUI supports it via **Settings → Images**. Point it at a ComfyUI backend if you run one, or use the `make image` command for a no-fuss GPU-hosted option.
 
 ---
 
@@ -226,3 +306,18 @@ make chat
 
 **WebUI won't start?**
 → Run `make webui` to restart it. If Docker isn't installed, run `make install` again.
+
+**`make ask` / `make image` says the API key isn't set?**
+→ Add `NVIDIA_API_KEY=nvapi-...` to `config.env`. Get a free key at [build.nvidia.com](https://build.nvidia.com).
+
+**`make ask` / `make image` says `jq` is required?**
+→ Install it: `sudo apt install jq` (Ubuntu) or `brew install jq` (macOS). `make install` does this for you on the VM.
+
+**NVIDIA API error: 401 / out of credits?**
+→ Your key is wrong or credits are exhausted. Check the key, or see your usage at [build.nvidia.com](https://build.nvidia.com).
+
+**Hosted Nemotron models don't appear in Open WebUI?**
+→ You set the key *after* starting WebUI. Re-run `make webui` (or `make install`) so the container picks it up.
+
+**`make image` couldn't find image data in the response?**
+→ Different image models return slightly different shapes. Try a different `IMAGE_MODEL` in `config.env` (e.g. `black-forest-labs/flux.1-schnell`).
