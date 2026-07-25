@@ -33,6 +33,7 @@ help:
 	@echo "    make stop           Stop the web UI"
 	@echo "    make status         Show what's running on the VM"
 	@echo "    make webui          (Re)start the Open WebUI chat interface"
+	@echo "    make reset-webui    Wipe WebUI accounts/chats, recreate fresh"
 	@echo ""
 	@echo "  $(BOLD)LOCAL MODELS (Ollama — off by default)$(RESET)"
 	@echo "    make remove-ollama  Remove Ollama from the VM (use NVIDIA hosted only)"
@@ -110,6 +111,14 @@ webui: _check_config
 		echo "$(GREEN)  NVIDIA hosted Nemotron models are now in the model picker.$(RESET)"; \
 	fi
 	@$(MAKE) --no-print-directory setup-webui
+
+# ── Reset the WebUI: wipe accounts/chats, recreate fresh (admin from config) ──
+.PHONY: reset-webui
+reset-webui: _check_config
+	@echo "$(CYAN)Wiping Open WebUI data (accounts + chats) and recreating fresh...$(RESET)"
+	@docker rm -f open-webui 2>/dev/null || true
+	@docker volume rm open-webui 2>/dev/null || true
+	@$(MAKE) --no-print-directory webui
 
 # ── Deploy from your Mac: push code + config and update the VM (one command) ──
 .PHONY: deploy
