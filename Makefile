@@ -7,6 +7,10 @@ CONFIG := config.env
 -include $(CONFIG)
 export
 
+# Defaults if not set in config.env
+WEBUI_PORT ?= 3000
+OLLAMA_PORT ?= 11434
+
 SCRIPTS := scripts
 
 .DEFAULT_GOAL := help
@@ -94,14 +98,14 @@ webui: _check_config
 	@docker run -d \
 		--name open-webui \
 		--restart always \
-		-p 3000:8080 \
+		-p $(WEBUI_PORT):8080 \
 		--add-host=host.docker.internal:host-gateway \
 		$(if $(filter true,$(ENABLE_OLLAMA)),-e OLLAMA_BASE_URL="http://host.docker.internal:$(OLLAMA_PORT)",-e ENABLE_OLLAMA_API=false) \
 		-e ENABLE_SIGNUP=true \
 		$(if $(NVIDIA_API_KEY),-e OPENAI_API_BASE_URL="$(NVIDIA_BASE_URL)" -e OPENAI_API_KEY="$(NVIDIA_API_KEY)" -e NVIDIA_API_KEY="$(NVIDIA_API_KEY)",) \
 		-v open-webui:/app/backend/data \
 		ghcr.io/open-webui/open-webui:main
-	@echo "$(GREEN)Open WebUI started at http://$(shell curl -s ifconfig.me):3000$(RESET)"
+	@echo "$(GREEN)Open WebUI started at http://$(shell curl -s ifconfig.me):$(WEBUI_PORT)$(RESET)"
 	@if [ -n "$(NVIDIA_API_KEY)" ]; then \
 		echo "$(GREEN)  NVIDIA hosted Nemotron models are now in the model picker.$(RESET)"; \
 	fi

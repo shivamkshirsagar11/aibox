@@ -48,7 +48,7 @@ fi
 # Open WebUI
 echo ""
 if docker ps --filter "name=open-webui" --filter "status=running" | grep -q open-webui 2>/dev/null; then
-  echo -e "  Open WebUI       ${GREEN}● running${RESET}  →  http://$(curl -s ifconfig.me 2>/dev/null):3000"
+  echo -e "  Open WebUI       ${GREEN}● running${RESET}  →  http://$(curl -s ifconfig.me 2>/dev/null):${WEBUI_PORT:-3000}"
 elif [[ "${ENABLE_WEBUI:-false}" == "true" ]]; then
   echo -e "  Open WebUI       ${RED}✗ stopped${RESET}  →  run: make webui"
 else

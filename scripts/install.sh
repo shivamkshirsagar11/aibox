@@ -106,8 +106,9 @@ if [[ "${ENABLE_WEBUI:-false}" == "true" ]]; then
     warn "Docker already installed — skipping."
   fi
 
-  info "Starting Open WebUI on port 3000..."
-  sudo iptables -I INPUT -p tcp --dport 3000 -j ACCEPT 2>/dev/null || true
+  WEBUI_PORT="${WEBUI_PORT:-3000}"
+  info "Starting Open WebUI on port ${WEBUI_PORT}..."
+  sudo iptables -I INPUT -p tcp --dport "${WEBUI_PORT}" -j ACCEPT 2>/dev/null || true
 
   # Remove old container if exists
   docker rm -f open-webui 2>/dev/null || true
@@ -131,7 +132,7 @@ if [[ "${ENABLE_WEBUI:-false}" == "true" ]]; then
   docker run -d \
     --name open-webui \
     --restart always \
-    -p 3000:8080 \
+    -p ${WEBUI_PORT}:8080 \
     --add-host=host.docker.internal:host-gateway \
     "${OLLAMA_ARGS[@]}" \
     -e ENABLE_SIGNUP=true \
@@ -139,7 +140,7 @@ if [[ "${ENABLE_WEBUI:-false}" == "true" ]]; then
     -v open-webui:/app/backend/data \
     ghcr.io/open-webui/open-webui:main
 
-  success "Open WebUI started. Visit: http://$(curl -s ifconfig.me):3000"
+  success "Open WebUI started. Visit: http://$(curl -s ifconfig.me):${WEBUI_PORT}"
 
   # Turnkey: create the admin login + install image generation (no browser setup)
   info "Configuring Open WebUI (admin account + image generation)..."
@@ -150,15 +151,15 @@ fi
 echo ""
 echo -e "${BOLD}${GREEN}✅  All done!${RESET}"
 echo ""
+[[ "${ENABLE_OLLAMA:-false}" == "true" ]] && \
 echo -e "  ${BOLD}Ollama API${RESET}  →  http://$(curl -s ifconfig.me):${OLLAMA_PORT}"
 [[ "${ENABLE_WEBUI:-false}" == "true" ]] && \
-echo -e "  ${BOLD}Chat UI${RESET}     →  http://$(curl -s ifconfig.me):3000"
+echo -e "  ${BOLD}Chat UI${RESET}     →  http://$(curl -s ifconfig.me):${WEBUI_PORT:-3000}"
 echo ""
-echo -e "  ${YELLOW}⚠️  IMPORTANT:${RESET} You must also open these ports in Oracle Cloud Console:"
-echo -e "  Go to: VCN → Security Lists → Add Ingress Rules"
-echo -e "  Add TCP port ${OLLAMA_PORT}  (and 3000 if WebUI enabled)"
-echo ""
-echo -e "  On your local machine, run:  ${CYAN}make tunnel${RESET}"
+echo -e "  ${YELLOW}⚠️  IMPORTANT:${RESET} Open this port in the Oracle Cloud Console:"
+echo -e "  VCN → Security Lists → Add Ingress Rules → TCP ${WEBUI_PORT:-3000}"
+[[ "${ENABLE_OLLAMA:-false}" == "true" ]] && \
+echo -e "  (and TCP ${OLLAMA_PORT} for Ollama)"
 echo ""
 if [[ -n "${NVIDIA_API_KEY:-}" ]]; then
   echo -e "  ${BOLD}NVIDIA hosted GPU is enabled.${RESET} Try:"
