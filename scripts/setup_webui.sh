@@ -103,5 +103,15 @@ if [[ "$ACTIVE" != "true" ]]; then
   curl -sS -X POST "$BASE/api/v1/functions/id/$FUNC_ID/toggle" "${AUTH[@]}" >/dev/null 2>&1
 fi
 ok "Image models are now enabled in the chat model dropdown."
+
+# ── Set an info banner about the shared NVIDIA free-tier rate limit ───────────
+BANNER_TEXT="${WEBUI_BANNER:-⚡ Text & images run on NVIDIA's free tier — ~40 requests/min shared by all users. If a generation fails, wait a minute and retry.}"
+banner_body=$(jq -n --arg content "$BANNER_TEXT" \
+  '{banners: [{id: "aibox-ratelimit", type: "info", title: "", content: $content, dismissible: true, timestamp: (now|floor)}]}')
+if curl -sS -X POST "$BASE/api/v1/configs/banners" "${AUTH[@]}" \
+     -H "Content-Type: application/json" -d "$banner_body" >/dev/null 2>&1; then
+  ok "Set the rate-limit info banner."
+fi
+
 echo ""
 ok "${BOLD}Done — open $BASE, log in, and pick a 🎨 model to generate images.${RESET}"
