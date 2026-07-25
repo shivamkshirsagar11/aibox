@@ -105,7 +105,7 @@ fi
 ok "Image models are now enabled in the chat model dropdown."
 
 # ── Set an info banner about the shared NVIDIA free-tier rate limit ───────────
-BANNER_TEXT="${WEBUI_BANNER:-⚡ Text & images run on NVIDIA's free tier — ~40 requests/min shared by all users. If a generation fails, wait a minute and retry.}"
+BANNER_TEXT="${WEBUI_BANNER:-⚡ Text and images run on the NVIDIA free tier — about 40 requests/min shared by all users. If a generation fails, wait a minute and retry.}"
 banner_body=$(jq -n --arg content "$BANNER_TEXT" \
   '{banners: [{id: "aibox-ratelimit", type: "info", title: "", content: $content, dismissible: true, timestamp: (now|floor)}]}')
 if curl -sS -X POST "$BASE/api/v1/configs/banners" "${AUTH[@]}" \
