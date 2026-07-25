@@ -28,11 +28,12 @@ if [[ -z "$PROMPT" ]]; then
   exit 1
 fi
 
-IMAGE_MODEL="${IMAGE_MODEL:-black-forest-labs/flux.1-schnell}"
+IMAGE_MODEL="${IMAGE_MODEL:-black-forest-labs/flux.1-dev}"
+IMAGE_STEPS="${IMAGE_STEPS:-50}"
 IMAGE_API_URL="${IMAGE_API_URL:-https://ai.api.nvidia.com/v1/genai}"
 OUT_DIR="${IMAGE_OUT_DIR:-./images}"
 mkdir -p "$OUT_DIR"
-OUT_FILE="$OUT_DIR/img_$(date +%Y%m%d_%H%M%S).png"
+OUT_BASE="$OUT_DIR/img_$(date +%Y%m%d_%H%M%S)"
 
 echo -e "${CYAN}${BOLD}→ ${IMAGE_MODEL}${RESET}  ${CYAN}(NVIDIA hosted GPU)${RESET}"
 echo -e "  prompt: ${BOLD}${PROMPT}${RESET}"
@@ -40,7 +41,8 @@ echo ""
 
 BODY=$(jq -n \
   --arg prompt "$PROMPT" \
-  '{prompt: $prompt, width: 1024, height: 1024, steps: 4, seed: 0, cfg_scale: 3.5}')
+  --argjson steps "$IMAGE_STEPS" \
+  '{prompt: $prompt, width: 1024, height: 1024, steps: $steps, seed: 0, cfg_scale: 3.5}')
 
 RESP=$(curl -sS "${IMAGE_API_URL}/${IMAGE_MODEL}" \
   -H "Authorization: Bearer ${NVIDIA_API_KEY}" \
@@ -70,13 +72,23 @@ if [[ -z "$B64" ]]; then
   exit 1
 fi
 
-# Strip a possible data-URI prefix, then decode
+# Strip a possible data-URI prefix, then decode to a temp file
 B64="${B64#data:image/*;base64,}"
+TMP="$OUT_BASE.tmp"
 if base64 --help 2>&1 | grep -q -- '-d'; then
-  echo "$B64" | base64 -d > "$OUT_FILE"      # GNU / Linux
+  echo "$B64" | base64 -d > "$TMP"      # GNU / Linux
 else
-  echo "$B64" | base64 -D > "$OUT_FILE"      # BSD / macOS
+  echo "$B64" | base64 -D > "$TMP"      # BSD / macOS
 fi
+
+# Name the file by its real format (NVIDIA's FLUX returns JPEG, others PNG)
+case "$(head -c 2 "$TMP" | od -An -tx1 | tr -d ' ')" in
+  ffd8) EXT="jpg" ;;
+  8950) EXT="png" ;;
+  *)    EXT="png" ;;
+esac
+OUT_FILE="$OUT_BASE.$EXT"
+mv "$TMP" "$OUT_FILE"
 
 echo -e "${GREEN}✓ saved:${RESET} ${BOLD}${OUT_FILE}${RESET}"
 

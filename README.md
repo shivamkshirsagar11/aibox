@@ -194,7 +194,7 @@ client = OpenAI(
     api_key="nvapi-...",   # your NVIDIA_API_KEY
 )
 response = client.chat.completions.create(
-    model="nvidia/llama-3.3-nemotron-super-49b-v1",
+    model="nvidia/nemotron-3-ultra-550b-a55b",
     messages=[{"role": "user", "content": "Design a rate limiter"}],
 )
 print(response.choices[0].message.content)
@@ -244,13 +244,15 @@ curl http://localhost:11434/api/generate -d '{
 
 These run on [build.nvidia.com](https://build.nvidia.com), not your VM, so size doesn't matter:
 
-| Model | Best for |
-|-------|----------|
-| `nvidia/llama-3.3-nemotron-super-49b-v1` | Great all-round chat + reasoning. **Default.** |
-| `nvidia/nemotron-3-super-120b-a12b` | Most capable — top-tier reasoning & agentic work |
-| `nvidia/llama-3.1-nemotron-70b-instruct` | Strong instruction following |
+| Model | Params | Best for |
+|-------|--------|----------|
+| `nvidia/nemotron-3-ultra-550b-a55b` | 550B (55B active) | Flagship reasoning & agentic work. **Default.** |
+| `nvidia/nemotron-4-340b-instruct` | 340B | Very strong instruction following |
+| `nvidia/llama-3.1-nemotron-ultra-253b-v1` | 253B | Dense high-end reasoning |
+| `nvidia/nemotron-3-super-120b-a12b` | 120B (12B active) | Faster, still excellent |
+| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 49B | Quickest, easiest on credits |
 
-Browse the full catalog (and copy exact model IDs) at [build.nvidia.com/models](https://build.nvidia.com). Use them via `make ask` or straight from the Open WebUI model dropdown.
+The 550B is a Mixture-of-Experts model (only 55B params active per token), so it's far faster and cheaper on credits than a dense 550B would be — but it's still the heaviest option. Drop to the 120B or 49B if you want snappier replies. Browse the full catalog at [build.nvidia.com](https://build.nvidia.com); use any model via `make ask` or straight from the Open WebUI dropdown.
 
 ### Switching the local model
 
@@ -275,13 +277,15 @@ Your CPU-only VM can't generate images at any usable speed, so aibox offloads it
 make image PROMPT="a cozy cyberpunk coffee shop, neon rain, cinematic"
 ```
 
-The PNG lands in `./images/` (and opens automatically if you're on a desktop). Change the model in `config.env`:
+The PNG lands in `./images/` (and opens automatically if you're on a desktop). Change the model + steps in `config.env`:
 
-| `IMAGE_MODEL` | Notes |
-|---------------|-------|
-| `black-forest-labs/flux.1-schnell` | Fast, 4-step. **Default.** |
-| `black-forest-labs/flux.1-dev` | Higher quality, slower |
-| `stabilityai/stable-diffusion-3.5-large` | Stable Diffusion 3.5 |
+| `IMAGE_MODEL` | `IMAGE_STEPS` | Notes |
+|---------------|:-------------:|-------|
+| `black-forest-labs/flux.1-dev` | `50` | 12B state-of-the-art quality. **Default.** |
+| `black-forest-labs/flux.1-schnell` | `4` | Distilled — fast 4-step drafts |
+| `stabilityai/stable-diffusion-3.5-large` | `50` | 8B, rich artistic styles |
+
+> `flux.1-dev` is the best quality but needs ~50 steps (a few seconds on NVIDIA's GPUs). For quick drafts, switch to `flux.1-schnell` with `IMAGE_STEPS=4`.
 
 **Want image gen inside the chat UI too?** Open WebUI supports it via **Settings → Images**. Point it at a ComfyUI backend if you run one, or use the `make image` command for a no-fuss GPU-hosted option.
 
