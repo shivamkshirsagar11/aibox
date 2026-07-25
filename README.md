@@ -134,11 +134,14 @@ make image PROMPT="a red panda coding on a laptop, studio lighting"  # generate 
 
 Images are saved to `./images/` (and opened automatically on a desktop machine).
 
-### On your local machine
+### On your local machine (your Mac)
 
 ```bash
-make tunnel         # SSH tunnel → Ollama available at localhost:11434
+make deploy         # Push code + config and update the VM — one command
+make tunnel         # (optional) SSH tunnel → Ollama at localhost:11434
 ```
+
+`make deploy` reads `VM_IP` / `SSH_USER` / `SSH_KEY` from `config.env`, syncs the VM to the latest `main`, uploads your `config.env`, and runs the update on the VM. Override the remote step with `make deploy REMOTE="make webui"` (e.g. for a quick UI restart instead of a full install).
 
 ---
 

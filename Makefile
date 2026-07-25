@@ -45,7 +45,8 @@ help:
 	@echo "    make cleanup            Delete generated images older than CLEANUP_DAYS"
 	@echo "    make cleanup-install    Install a daily cron that runs cleanup"
 	@echo ""
-	@echo "  $(BOLD)LOCAL MACHINE$(RESET)"
+	@echo "  $(BOLD)LOCAL MACHINE (run on your Mac)$(RESET)"
+	@echo "    make deploy         Push code + config and update the VM (one command)"
 	@echo "    make tunnel         SSH tunnel — use Ollama at localhost:$(OLLAMA_PORT)"
 	@echo ""
 	@echo "  Edit $(BOLD)config.env$(RESET) to change model, VM IP, or options."
@@ -105,6 +106,12 @@ webui: _check_config
 		echo "$(GREEN)  NVIDIA hosted Nemotron models are now in the model picker.$(RESET)"; \
 	fi
 	@$(MAKE) --no-print-directory setup-webui
+
+# ── Deploy from your Mac: push code + config and update the VM (one command) ──
+.PHONY: deploy
+deploy: _check_config _check_vm_ip
+	@chmod +x $(SCRIPTS)/deploy.sh
+	@REMOTE="$(REMOTE)" bash $(SCRIPTS)/deploy.sh
 
 # ── SSH Tunnel (run on LOCAL machine) ────────────────────────────────────────
 .PHONY: tunnel
